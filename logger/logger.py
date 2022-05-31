@@ -3,7 +3,7 @@ import neptune.new as neptune
 
 class NeptuneLogger():
     """
-    Neptune logger. Uses it the same way you would use neptune run
+    Neptune logger. Use it the same way you would use neptune run
 
     e.g
     n = NeptuneLogger()
