@@ -27,7 +27,7 @@ import torch.utils.checkpoint
 from torch import nn
 from torch.nn import CrossEntropyLoss, MSELoss
 
-from .modeling_outputs import (
+from transformers.modeling_outputs import (
     BaseModelOutputWithCrossAttentions,
     BaseModelOutputWithPoolingAndCrossAttentions,
     CausalLMOutputWithCrossAttentions,
@@ -38,12 +38,15 @@ from .modeling_outputs import (
     SequenceClassifierOutput,
     TokenClassifierOutput,
 )
-from .modeling_utils import (
+from transformers.modeling_utils import (
     PreTrainedModel,
     apply_chunking_to_forward,
     find_pruneable_heads_and_indices,
     prune_linear_layer,
 )
+
+from transformers.activations import GELUActivation
+from transformers.modeling_utils import PreTrainedModel
 
 
 class BertEmbeddings(nn.Module):
@@ -232,7 +235,7 @@ class BertIntermediate(nn.Module):
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
         if isinstance(config.hidden_act, str):
-            self.intermediate_act_fn = ACT2FN[config.hidden_act]
+            self.intermediate_act_fn = GELUActivation() # this was originally in config
         else:
             self.intermediate_act_fn = config.hidden_act
 
@@ -403,6 +406,28 @@ class BertPooler(nn.Module):
         pooled_output = self.activation(pooled_output)
         return pooled_output
 
+class BertPreTrainedModel(PreTrainedModel):
+    """
+    An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
+    models.
+    """
+
+    #config_class = BertConfig
+    #load_tf_weights = load_tf_weights_in_bert
+    base_model_prefix = "bert"
+    authorized_missing_keys = [r"position_ids"]
+
+    def _init_weights(self, module):
+        """ Initialize the weights """
+        if isinstance(module, (nn.Linear, nn.Embedding)):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data.zero_()
 
 class BertModel(BertPreTrainedModel):
     """
@@ -538,3 +563,4 @@ class BertModel(BertPreTrainedModel):
             attentions=encoder_outputs.attentions,
             cross_attentions=encoder_outputs.cross_attentions,
         )
+
