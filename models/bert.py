@@ -267,14 +267,12 @@ class BertLayer(nn.Module):
         self,
         hidden_states,
         attention_mask=None,
-        encoder_hidden_states=None,
-        encoder_attention_mask=None,
-        output_attentions=False,
     ):
+
         self_attention_outputs = self.attention(
             hidden_states,
             attention_mask,
-            output_attentions=output_attentions,
+            output_attentions=False,
         )
         attention_output = self_attention_outputs[0]
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
@@ -311,9 +309,6 @@ class BertEncoder(nn.Module):
             layer_outputs = layer_module(
                 hidden_states,
                 attention_mask,
-                None,
-                None,
-                False,
             )
             hidden_states = layer_outputs[0]
 
