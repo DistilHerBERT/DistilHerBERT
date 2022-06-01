@@ -273,8 +273,6 @@ class BertLayer(nn.Module):
         hidden_states,
         attention_mask=None,
         head_mask=None,
-        encoder_hidden_states=None,
-        encoder_attention_mask=None,
         output_attentions=False,
     ):
         self_attention_outputs = self.attention(
