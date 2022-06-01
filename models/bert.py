@@ -25,12 +25,6 @@ from typing import Optional, Tuple
 import torch
 import torch.utils.checkpoint
 from torch import nn
-from torch.nn import CrossEntropyLoss, MSELoss
-
-from transformers.modeling_outputs import (
-    BaseModelOutputWithCrossAttentions,
-    BaseModelOutputWithPoolingAndCrossAttentions,
-)
 
 from transformers.activations import GELUActivation
 
@@ -254,9 +248,6 @@ class BertEncoder(nn.Module):
         hidden_states,
         attention_mask=None,
     ):
-        all_hidden_states = None
-        all_self_attentions = None
-        all_cross_attentions = None
         for i, layer_module in enumerate(self.layer):
 
             layer_outputs = layer_module(
@@ -265,13 +256,7 @@ class BertEncoder(nn.Module):
             )
             hidden_states = layer_outputs[0]
 
-
-        return BaseModelOutputWithCrossAttentions(
-            last_hidden_state=hidden_states,
-            hidden_states=all_hidden_states,
-            attentions=all_self_attentions,
-            cross_attentions=all_cross_attentions,
-        )
+        return hidden_states
 
 
 class BertPooler(nn.Module):
@@ -385,13 +370,7 @@ class BertModel(nn.Module):
             embedding_output,
             attention_mask=extended_attention_mask,
         )
-        sequence_output = encoder_outputs[0]
+        sequence_output = encoder_outputs
         pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
 
-        return BaseModelOutputWithPoolingAndCrossAttentions(
-            last_hidden_state=sequence_output,
-            pooler_output=pooled_output,
-            hidden_states=encoder_outputs.hidden_states,
-            attentions=encoder_outputs.attentions,
-            cross_attentions=encoder_outputs.cross_attentions,
-        )
+        return sequence_output, pooled_output
