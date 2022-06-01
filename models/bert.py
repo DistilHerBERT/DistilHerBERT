@@ -66,11 +66,8 @@ class BertEmbeddings(nn.Module):
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
         self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
 
-    def forward(self, input_ids=None, token_type_ids=None, inputs_embeds=None):
-        if input_ids is not None:
-            input_shape = input_ids.size()
-        else:
-            input_shape = inputs_embeds.size()[:-1]
+    def forward(self, input_ids=None, token_type_ids=None):
+        input_shape = input_ids.size()
 
         seq_length = input_shape[1]
 
@@ -79,8 +76,7 @@ class BertEmbeddings(nn.Module):
         if token_type_ids is None:
             token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=self.position_ids.device)
 
-        if inputs_embeds is None:
-            inputs_embeds = self.word_embeddings(input_ids)
+        inputs_embeds = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
@@ -454,7 +450,6 @@ class BertModel(BertPreTrainedModel):
         attention_mask=None,
         token_type_ids=None,
 
-        inputs_embeds=None,
         encoder_hidden_states=None,
         encoder_attention_mask=None,
     ):
@@ -470,16 +465,9 @@ class BertModel(BertPreTrainedModel):
             - 0 for tokens that are **masked**.
         """
 
-        if input_ids is not None and inputs_embeds is not None:
-            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
-        elif input_ids is not None:
-            input_shape = input_ids.size()
-        elif inputs_embeds is not None:
-            input_shape = inputs_embeds.size()[:-1]
-        else:
-            raise ValueError("You have to specify either input_ids or inputs_embeds")
+        input_shape = input_ids.size()
 
-        device = input_ids.device if input_ids is not None else inputs_embeds.device
+        device = input_ids.device
 
         if attention_mask is None:
             attention_mask = torch.ones(input_shape, device=device)
@@ -503,7 +491,7 @@ class BertModel(BertPreTrainedModel):
 
 
         embedding_output = self.embeddings(
-            input_ids=input_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
+            input_ids=input_ids, token_type_ids=token_type_ids
         )
         encoder_outputs = self.encoder(
             embedding_output,
