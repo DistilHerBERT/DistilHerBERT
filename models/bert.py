@@ -114,7 +114,6 @@ class BertSelfAttention(nn.Module):
         self,
         hidden_states,
         attention_mask=None,
-        head_mask=None,
         encoder_hidden_states=None,
         encoder_attention_mask=None,
         output_attentions=False,
@@ -151,8 +150,6 @@ class BertSelfAttention(nn.Module):
         attention_probs = self.dropout(attention_probs)
 
         # Mask heads if we want to
-        if head_mask is not None:
-            attention_probs = attention_probs * head_mask
 
         context_layer = torch.matmul(attention_probs, value_layer)
 
@@ -207,7 +204,6 @@ class BertAttention(nn.Module):
         self,
         hidden_states,
         attention_mask=None,
-        head_mask=None,
         encoder_hidden_states=None,
         encoder_attention_mask=None,
         output_attentions=False,
@@ -215,7 +211,6 @@ class BertAttention(nn.Module):
         self_outputs = self.self(
             hidden_states,
             attention_mask,
-            head_mask,
             encoder_hidden_states,
             encoder_attention_mask,
             output_attentions,
@@ -272,17 +267,18 @@ class BertLayer(nn.Module):
         self,
         hidden_states,
         attention_mask=None,
-        head_mask=None,
+        encoder_hidden_states=None,
+        encoder_attention_mask=None,
         output_attentions=False,
     ):
         self_attention_outputs = self.attention(
             hidden_states,
             attention_mask,
-            head_mask,
             output_attentions=output_attentions,
         )
         attention_output = self_attention_outputs[0]
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
+
 
         layer_output = apply_chunking_to_forward(
             self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, attention_output
@@ -315,7 +311,6 @@ class BertEncoder(nn.Module):
             layer_outputs = layer_module(
                 hidden_states,
                 attention_mask,
-                None,
                 None,
                 None,
                 False,
