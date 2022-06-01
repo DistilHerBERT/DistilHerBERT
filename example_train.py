@@ -9,21 +9,23 @@ from transformers import AutoTokenizer, AutoModel
 
 
 epochs = 10
-save_path = './weights/agnews_net.pth'
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+save_path = './agnews_net.pth'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 save_interval = 100
-lr = 0.001
-batch_size = 32
+lr = 0.0001
+batch_size = 5
 
 
 log = NeptuneLogger()
 log['lr'] = lr
 log['epochs'] = epochs
+log['device'] = device
+log['batch_size'] = batch_size
 
 # loading data train = test on purpose, this is just an example
 dataset = load_dataset("ag_news")
 
-train = dataset['train']
+train = dataset['test']
 test = dataset['test']
 
 
@@ -39,11 +41,12 @@ print(len(train))
 # copyw
 net = BertAgNews(model_pl.config)
 net.bert.load_state_dict(model_pl.state_dict())
+net.to(device)
 
 
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=lr, momentum=0.9)
+optimizer = optim.Adam(net.parameters(), lr=lr)
 
 for epoch in range(epochs):  # loop over the dataset multiple times
     running_loss = 0.0
@@ -54,6 +57,9 @@ for epoch in range(epochs):  # loop over the dataset multiple times
         attention_mask = data['attention_mask']
         label = data['label']
         # label denotes news type, 0, 1, 2, 3 - "World", “Sports”, “Business”, “Sci/Tech
+        input_ids = input_ids.to(device)
+        attention_mask = attention_mask.to(device)
+        label = label.to(device)
 
         # zero the parameter gradients
         optimizer.zero_grad()
@@ -64,9 +70,9 @@ for epoch in range(epochs):  # loop over the dataset multiple times
             attention_mask=attention_mask
         )
         outputs = torch.nn.Softmax(dim=1)(outputs)
-        print(outputs)
 
         loss = criterion(outputs, label)
+        log['train_every_step'].log(loss)
         loss.backward()
         optimizer.step()
 
@@ -93,6 +99,11 @@ with torch.no_grad():
         input_ids = data['input_ids']
         attention_mask = data['attention_mask']
         label = data['label']
+
+        input_ids = input_ids.to(device)
+        attention_mask = attention_mask.to(device)
+        label = label.to(device)
+
 
         outputs = net(
             input_ids=input_ids,
