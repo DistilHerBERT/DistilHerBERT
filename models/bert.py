@@ -323,7 +323,6 @@ class BertEncoder(nn.Module):
         self,
         hidden_states,
         attention_mask=None,
-        encoder_attention_mask=None,
     ):
         all_hidden_states = None
         all_self_attentions = None
@@ -345,7 +344,7 @@ class BertEncoder(nn.Module):
                     attention_mask,
                     None,
                     None,
-                    encoder_attention_mask,
+                    None,
                 )
             else:
                 layer_outputs = layer_module(
@@ -353,7 +352,7 @@ class BertEncoder(nn.Module):
                     attention_mask,
                     None,
                     None,
-                    encoder_attention_mask,
+                    None,
                     False,
                 )
             hidden_states = layer_outputs[0]
@@ -448,8 +447,6 @@ class BertModel(BertPreTrainedModel):
         input_ids=None,
         attention_mask=None,
         token_type_ids=None,
-
-        encoder_attention_mask=None,
     ):
         r"""
         encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
@@ -478,7 +475,6 @@ class BertModel(BertPreTrainedModel):
 
         # If a 2D or 3D attention mask is provided for the cross-attention
         # we need to make broadcastable to [batch_size, num_heads, seq_length, seq_length]
-        encoder_extended_attention_mask = None
 
 
         embedding_output = self.embeddings(
@@ -487,7 +483,6 @@ class BertModel(BertPreTrainedModel):
         encoder_outputs = self.encoder(
             embedding_output,
             attention_mask=extended_attention_mask,
-            encoder_attention_mask=encoder_extended_attention_mask,
         )
         sequence_output = encoder_outputs[0]
         pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
