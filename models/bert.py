@@ -329,32 +329,14 @@ class BertEncoder(nn.Module):
         all_cross_attentions = None
         for i, layer_module in enumerate(self.layer):
 
-
-            if getattr(self.config, "gradient_checkpointing", False):
-
-                def create_custom_forward(module):
-                    def custom_forward(*inputs):
-                        return module(*inputs, False)
-
-                    return custom_forward
-
-                layer_outputs = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(layer_module),
-                    hidden_states,
-                    attention_mask,
-                    None,
-                    None,
-                    None,
-                )
-            else:
-                layer_outputs = layer_module(
-                    hidden_states,
-                    attention_mask,
-                    None,
-                    None,
-                    None,
-                    False,
-                )
+            layer_outputs = layer_module(
+                hidden_states,
+                attention_mask,
+                None,
+                None,
+                None,
+                False,
+            )
             hidden_states = layer_outputs[0]
 
 
