@@ -31,9 +31,6 @@ from transformers.modeling_outputs import (
     BaseModelOutputWithCrossAttentions,
     BaseModelOutputWithPoolingAndCrossAttentions,
 )
-from transformers.modeling_utils import (
-    apply_chunking_to_forward,
-)
 
 from transformers.activations import GELUActivation
 
@@ -232,9 +229,11 @@ class BertLayer(nn.Module):
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
 
 
-        layer_output = apply_chunking_to_forward(
-            self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, attention_output
-        )
+        #layer_output = apply_chunking_to_forward(
+        #    self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, attention_output
+        #)
+        layer_output = self.feed_forward_chunk(attention_output)
+
         outputs = (layer_output,) + outputs
         return outputs
 
