@@ -328,7 +328,6 @@ class BertEncoder(nn.Module):
         self,
         hidden_states,
         attention_mask=None,
-        head_mask=None,
         encoder_hidden_states=None,
         encoder_attention_mask=None,
     ):
@@ -337,7 +336,6 @@ class BertEncoder(nn.Module):
         all_cross_attentions = None
         for i, layer_module in enumerate(self.layer):
 
-            layer_head_mask = head_mask[i] if head_mask is not None else None
 
             if getattr(self.config, "gradient_checkpointing", False):
 
@@ -351,7 +349,7 @@ class BertEncoder(nn.Module):
                     create_custom_forward(layer_module),
                     hidden_states,
                     attention_mask,
-                    layer_head_mask,
+                    None,
                     encoder_hidden_states,
                     encoder_attention_mask,
                 )
@@ -359,7 +357,7 @@ class BertEncoder(nn.Module):
                 layer_outputs = layer_module(
                     hidden_states,
                     attention_mask,
-                    layer_head_mask,
+                    None,
                     encoder_hidden_states,
                     encoder_attention_mask,
                     False,
@@ -458,7 +456,6 @@ class BertModel(BertPreTrainedModel):
 
         token_type_ids=None,
         position_ids=None,
-        head_mask=None,
         inputs_embeds=None,
         encoder_hidden_states=None,
         encoder_attention_mask=None,
@@ -506,12 +503,6 @@ class BertModel(BertPreTrainedModel):
         else:
             encoder_extended_attention_mask = None
 
-        # Prepare head mask if needed
-        # 1.0 in head_mask indicate we keep the head
-        # attention_probs has shape bsz x n_heads x N x N
-        # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
-        # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
-        head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
 
         embedding_output = self.embeddings(
             input_ids=input_ids, position_ids=position_ids, token_type_ids=token_type_ids, inputs_embeds=inputs_embeds
@@ -519,7 +510,6 @@ class BertModel(BertPreTrainedModel):
         encoder_outputs = self.encoder(
             embedding_output,
             attention_mask=extended_attention_mask,
-            head_mask=head_mask,
             encoder_hidden_states=encoder_hidden_states,
             encoder_attention_mask=encoder_extended_attention_mask,
         )
