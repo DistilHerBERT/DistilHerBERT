@@ -3,7 +3,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 class TensorboardPyTorch:
-    def __init__(self, log_name, device):
+    def __init__(self, log_name, device='cpu'):
         self.writer = SummaryWriter(log_dir=log_name, flush_secs=60)
         self.device = device
         self.tensors = {}
