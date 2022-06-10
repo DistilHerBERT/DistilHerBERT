@@ -1,6 +1,6 @@
 from itertools import compress, cycle
-from torch.nn import Identity
-from transformers import AutoModel, BertConfig
+from torch.nn import Identity, LayerNorm
+from transformers import AutoModel, BertConfig, AutoTokenizer
 from transformers.models.bert.modeling_bert import BertModel as BERT
 from transformers.models.bert.modeling_bert import BertEncoder as BertEncoderHF
 
@@ -37,5 +37,24 @@ def creat_student(teacher_model=None):
     return student_model
 
 
+def test(model):
+    tokenizer = AutoTokenizer.from_pretrained("allegro/herbert-base-cased")
+    output = model(
+        **tokenizer.batch_encode_plus(
+            [
+                (
+                    "A potem szedł środkiem drogi w kurzawie, bo zamiatał nogami, ślepy dziad prowadzony przez tłustego kundla na sznurku.",
+                    "A potem leciał od lasu chłopak z butelką, ale ten ujrzawszy księdza przy drodze okrążył go z dala i biegł na przełaj pól do karczmy."
+                )
+            ],
+            padding='longest',
+            add_special_tokens=True,
+            return_tensors='pt'
+        )
+    )
+    return output
+
+
 if __name__ == "__main__":
     student = creat_student()
+    output = test(student)
