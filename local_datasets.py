@@ -5,10 +5,10 @@ from transformers import AutoTokenizer, AutoModel
 
 
 class CBDDataset(Dataset):
-    def __init__(self):
+    def __init__(self, path):
         texts = list()
         labels = list()
-        with open('data/train.tsv') as f:
+        with open(path) as f:
             reader = csv.reader(f, delimiter='\t')
             # to skip column names
             next(reader)

@@ -7,3 +7,4 @@ mv test_features.tsv data
 mv train.tsv data
 rm ./data/klej_cbd.zip
 
+mkdir -p weights

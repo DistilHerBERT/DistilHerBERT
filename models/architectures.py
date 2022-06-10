@@ -37,7 +37,7 @@ class BertAgNews(nn.Module):
 class BertCBD(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.num_labels = 2
+        self.num_labels = 1
         self.config = config
         self.bert = bert.BertModel(config)
 

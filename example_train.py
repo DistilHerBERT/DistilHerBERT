@@ -45,8 +45,8 @@ net.bert.load_state_dict(model_pl.state_dict())
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=lr, momentum=0.9)
 
-net.train()
 for epoch in range(epochs):  # loop over the dataset multiple times
+    net.train()
     running_loss = 0.0
     log['epoch'].log(epoch)
     for i, data in enumerate(train_loader):
