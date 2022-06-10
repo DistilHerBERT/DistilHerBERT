@@ -3,3 +3,4 @@ pytorch
 neptune-client
 torchdata
 torchtext
+sacremoses

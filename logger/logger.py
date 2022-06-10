@@ -24,3 +24,20 @@ class NeptuneLogger():
 
     def __del__(self):
         self.run.stop()
+
+
+class DummyLogger:
+    def __init__(self):
+        pass
+
+    def __setitem__(self, key, val):
+        pass
+
+    def __getitem__(self, key):
+        return self
+
+    def __del__(self):
+        pass
+
+    def log(self, *args, **kwargs):
+        pass
