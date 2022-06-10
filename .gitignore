@@ -1,0 +1,19 @@
+# mac
+.DS_Store
+# InteliJ
+.idea
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# neptune
+*/*.log
+
+*/.neptune
+.neptune
+
+*.pth
+
+data/
