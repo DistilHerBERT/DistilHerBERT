@@ -26,7 +26,7 @@ import torch
 import torch.utils.checkpoint
 from torch import nn
 
-from transformers.activations import GELUActivation
+# from transformers.activations import GELUActivation
 
 
 class BertEmbeddings(nn.Module):
@@ -177,7 +177,7 @@ class BertIntermediate(nn.Module):
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
         if isinstance(config.hidden_act, str):
-            self.intermediate_act_fn = GELUActivation() # this was originally in config
+            self.intermediate_act_fn = nn.GELU()#GELUActivation() # this was originally in config
         else:
             self.intermediate_act_fn = config.hidden_act
 

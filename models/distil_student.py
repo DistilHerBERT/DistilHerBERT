@@ -4,7 +4,7 @@ from transformers import AutoModel, BertConfig, AutoTokenizer
 from transformers.models.bert.modeling_bert import BertModel as BERT
 from transformers.models.bert.modeling_bert import BertEncoder as BertEncoderHF
 
-from projekt_nlp.DistilHerBERT.models.bert import BertModel, BertEncoder
+from models.bert import BertModel, BertEncoder
 
 
 def yield_every_other(g):
