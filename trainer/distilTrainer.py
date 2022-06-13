@@ -26,19 +26,17 @@ class DistilTrainer(object):
         self.t_logger = None  # tensorflow logger
         self.device = device
 
-    def run_exp(self, epoch_start, epoch_end, exp_name, save_interval, random_seed=42, fp16=False):
-        save_path = self.at_exp_start(exp_name, random_seed, fp16)
+    def run_exp(self, epoch_start, epoch_end, exp_name, save_interval, temp=0.5, random_seed=42):
+        save_path = self.at_exp_start(exp_name, random_seed)
         for epoch in tqdm(range(epoch_start, epoch_end)):
             self.teacher.eval()
             self.student.train()
-            self.run_epoch(epoch, save_path, save_interval, phase='train')
+            self.run_epoch(epoch, save_path, save_interval, phase='train', temp=temp)
             self.student.eval()
             with torch.no_grad():
-                self.run_epoch(epoch, save_path, save_interval, phase='test')
-            if self.scheduler is not None:
-                self.scheduler.step()
+                self.run_epoch(epoch, save_path, save_interval, phase='test', temp=1.)
 
-    def at_exp_start(self, exp_name, random_seed, fp16):
+    def at_exp_start(self, exp_name, random_seed):
         self.manual_seed(random_seed)
         date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         base_path = os.path.join(os.getcwd(), f'exps/{exp_name}/{date}')
@@ -46,12 +44,9 @@ class DistilTrainer(object):
         os.makedirs(save_path)
         self.t_logger = TensorboardPyTorch(f'{base_path}/tensorboard', self.device)
         self.n_logger = None
-        if fp16:
-            self.teacher.half()
-            self.student.half()
         return save_path
 
-    def run_epoch(self, epoch, save_path, save_interval, phase):
+    def run_epoch(self, epoch, save_path, save_interval, phase, temp):
         running_loss1_teacher = 0.0
         running_loss1 = 0.0
         running_loss2 = 0.0
@@ -65,30 +60,37 @@ class DistilTrainer(object):
                 batch_text_or_text_pairs=list(data['sentence']),
                 padding='longest',
                 truncation=True,
-                add_special_tokens=False,
+                # add_special_tokens=False,
                 return_token_type_ids=False,
                 return_tensors='pt'
             ).to(self.device)
-            masked_ids = create_masked_ids(tokenized_data)
+            masked_ids_bool = create_masked_ids(tokenized_data).view(-1)
+            masked_target_ids = tokenized_data['input_ids'].view(-1)[masked_ids_bool]
 
             y_pred_student = self.student(**tokenized_data)[0]
+            y_pred_student = y_pred_student.view(-1, y_pred_student.size(-1))[masked_ids_bool]
+
             with torch.no_grad():
                 y_pred_teacher = self.teacher(**tokenized_data)['last_hidden_state']
+                y_pred_teacher = y_pred_teacher.view(-1, y_pred_teacher.size(-1))[masked_ids_bool]
 
-            loss0 = self.criterion1(y_pred_teacher[masked_ids], tokenized_data['input_ids'][masked_ids])
-            loss1 = self.criterion1(y_pred_student[masked_ids], tokenized_data['input_ids'][masked_ids])
-            # zrównanie odpowiedzi modelów na całej sekwencji czy tylko zamaskowanej?
-            loss2 = self.criterion2(F.log_softmax(y_pred_student/0.5, dim=-1),
-                                    F.softmax(y_pred_teacher/0.5, dim=-1))
-            loss3 = self.criterion3(y_pred_student.view(-1, y_pred_student.size(-1)),
-                                    y_pred_teacher.view(-1, y_pred_student.size(-1)),
-                                    torch.ones(y_pred_teacher.size()[:2]).view(-1).to(self.device))
-            # jakies ważenie losów?
-            loss = loss1 + loss2 + loss3
+            assert y_pred_student.shape == y_pred_teacher.shape
+
+            loss0 = self.criterion1(y_pred_teacher, masked_target_ids)
+            loss1 = self.criterion1(y_pred_student, masked_target_ids)
+            loss2 = self.criterion2(F.log_softmax(y_pred_student/temp, dim=-1), F.softmax(y_pred_teacher/temp, dim=-1))
+            loss3 = self.criterion3(y_pred_student,
+                                    y_pred_teacher,
+                                    torch.ones(masked_target_ids.shape).view(-1).to(self.device))
+            # jakies ważenie losów? może związane ze schedulerem?
+            loss = (loss1 + loss2 + loss3) / 3
             if 'train' in phase:
                 self.optim.zero_grad()
-                loss.backward()
+                self.accelerator.backward(loss) # jedyne użycie acceleratora w trainerze
+                # loss.backward()
                 self.optim.step()
+                if self.scheduler is not None:
+                    self.scheduler.step()
 
             # self.n_logger['train_every_step1'].log(loss1)
             # self.n_logger['train_every_step2'].log(loss2)
@@ -101,12 +103,12 @@ class DistilTrainer(object):
             running_loss3 += loss3.item()
             running_loss += loss.item()
             # loggers
-            if (i + 1) % 10 == 0:
-                tmp_loss0 = running_loss1_teacher / 10
-                tmp_loss1 = running_loss1 / 10
-                tmp_loss2 = running_loss2 / 10
-                tmp_loss3 = running_loss3 / 10
-                tmp_loss = running_loss / 10
+            if (i + 1) % 30 == 0:
+                tmp_loss0 = running_loss1_teacher / 30
+                tmp_loss1 = running_loss1 / 30
+                tmp_loss2 = running_loss2 / 30
+                tmp_loss3 = running_loss3 / 30
+                tmp_loss = running_loss / 30
 
                 # self.n_logger[f'MLM Loss/{phase}'].log(tmp_loss1)
                 # self.n_logger[f'Distil Loss/{phase}'].log(tmp_loss2)
@@ -126,10 +128,11 @@ class DistilTrainer(object):
                 running_loss = 0.0
 
                 # if (i + 1) % save_interval == 0:
-                #     self.save_net(save_path)
+                #     self.save_student(save_path)
 
-    def save_net(self, path):
+    def save_student(self, path):
         torch.save(self.student.state_dict(), f"{path}/student_{datetime.datetime.utcnow()}.pth")
+        # self.student.save_pretrained(f"{path}/student_{datetime.datetime.utcnow()}.pth")
 
     def manual_seed(self, random_seed):
         import numpy as np

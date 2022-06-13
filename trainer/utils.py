@@ -31,3 +31,23 @@ def get_teacher_student_tokenizer():
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+class CudaTimer:
+    def __init__(self):
+        self.start = None;
+        self.end = None
+        self.epoch_time = 0;
+        self.run_time = 0
+
+    def start_event(self):
+        self.start = torch.cuda.Event(enable_timing=True)
+        self.end = torch.cuda.Event(enable_timing=True)
+        self.start.record()
+
+    def end_event(self, epoch):
+        self.end.record();
+        torch.cuda.synchronize()
+        time_in_sec = self.start.elapsed_time(self.end) // 1000
+        self.epoch_time = time_in_sec
+        self.run_time += time_in_sec

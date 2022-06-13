@@ -33,7 +33,7 @@ def creat_student(teacher_model=None):
     student_model = BertModel(BertConfig.from_dict(teacher_config), add_pooling_layer=False)
     copy_weights_from_teacher_to_student(teacher_model, student_model)
     student_model.embeddings.token_type_embeddings = Identity()
-    print(student_model)
+    #print(student_model)
     return student_model
 
 
