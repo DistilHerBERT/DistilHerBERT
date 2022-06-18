@@ -37,25 +37,40 @@ def main():
     for epoch in range(epochs):  # loop over the dataset multiple times
         running_loss = 0.0
         log['epoch'].log(epoch)
+        size = 0
         for i, data in enumerate(train_loader):
-            log['step'].log(i)
-            input_ids = data['input_ids']
-            attention_mask = data['attention_mask']
-            # label = data['label'] # No labels in mlm
-            # label denotes news type, 0, 1, 2, 3 - "World", “Sports”, “Business”, “Sci/Tech
-            input_ids = input_ids.to(device)
-            attention_mask = attention_mask.to(device)
-            # label = label.to(device)
+            size += data['input_ids'].shape[0]
+            # log['step'].log(i)
+            # input_ids = data['input_ids']
+            # attention_mask = data['attention_mask']
+            # # label = data['label'] # No labels in mlm
+            # # label denotes news type, 0, 1, 2, 3 - "World", “Sports”, “Business”, “Sci/Tech
+            # input_ids = input_ids.to(device)
+            # attention_mask = attention_mask.to(device)
+            # # label = label.to(device)
+            #
+            # # zero the parameter gradients
+            # optimizer.zero_grad()
+            #
+            # # forward + backward + optimize
+            # outputs = net(
+            #     input_ids=input_ids,
+            #     attention_mask=attention_mask
+            # )
+            # outputs = torch.nn.Softmax(dim=1)(outputs)
+            print(f"Step {i} size {size}")
 
-            # zero the parameter gradients
-            optimizer.zero_grad()
 
-            # forward + backward + optimize
-            outputs = net(
-                input_ids=input_ids,
-                attention_mask=attention_mask
-            )
-            outputs = torch.nn.Softmax(dim=1)(outputs)
+
+
+
+
+
+
+
+
+
+
 
             # loss = criterion(outputs, label)
             # log['train_every_step'].log(loss)

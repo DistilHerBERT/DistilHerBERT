@@ -1,6 +1,7 @@
 transformers
-pytorch
+torch
 neptune-client
 torchdata
 torchtext
 sacremoses
+neattext
