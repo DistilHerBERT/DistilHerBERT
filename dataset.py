@@ -1,4 +1,5 @@
 import os.path
+from typing import Tuple, List
 from zlib import crc32
 
 import datasets
@@ -28,6 +29,7 @@ def bytes_to_float(b):
 def str_to_float(s, encoding="utf-8"):
     return bytes_to_float(s.encode(encoding))
 
+
 def imperfect_split_file_lines(file_path: str = os.path.join("data", "cc100", "pl.txt"),
                                train_fraction=0.8,
                                test_fraction=0.1,
@@ -40,7 +42,7 @@ def imperfect_split_file_lines(file_path: str = os.path.join("data", "cc100", "p
     with open(file_path, mode='r', encoding='utf-8') as read_file:
         with open(train_output_file, mode='w', encoding='utf-8') as train_file:
             with open(test_output_file, mode='w', encoding='utf-8') as test_file:
-                with open(valid_output_file, mode='w', encoding='utf-8' ) as valid_file:
+                with open(valid_output_file, mode='w', encoding='utf-8') as valid_file:
                     for _, line in enumerate(tqdm(read_file)):
                         sentence = line if not clean else clean_text(line)
                         num_between_0_and_1 = str_to_float(sentence)
@@ -52,31 +54,25 @@ def imperfect_split_file_lines(file_path: str = os.path.join("data", "cc100", "p
                             valid_file.write(sentence)
 
 
-def get_cc100_dataloader(tokenizer=AutoTokenizer.from_pretrained("allegro/herbert-base-cased"),
-                         dataset: datasets.iterable_dataset.IterableDataset = None,
-                         batch_size=10,
-                         mlm_prob=0.15):
-    if dataset is None:
-        dataset = load_dataset("text",
-                               data_files=os.path.join("data", "cc100", "pl.txt"),
-                               streaming=True) \
-            .map(lambda x: tokenizer(x["text"], truncation=True, padding="max_length", return_tensors='pt'),
-                 batched=True).remove_columns("text")
-
+def get_cc100_dataloaders(tokenizer=AutoTokenizer.from_pretrained("allegro/herbert-base-cased"),
+                          dir_path: str = os.path.join('data', 'cc100'),
+                          batch_size=10,
+                          mlm_prob=0.15) -> Tuple:
     tokenizer = AutoTokenizer.from_pretrained("allegro/herbert-base-cased")
-    # data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer,
                                                     mlm=True,
-                                                    mlm_probability=mlm_prob)  # TODO: it should be sufficient to specify the tokenizer in just one place, not both in dataset and data collator...
+                                                    mlm_probability=mlm_prob)  # TODO: it should be sufficient to specify the tokenizer in just one place, not both in dataset an
 
-    train = dataset['train']
-    torch_train = CC100Dataset(train)
-    train_loader = DataLoader(torch_train, batch_size=batch_size, collate_fn=data_collator)
+    datasets = load_dataset("text", data_dir=os.path.join(dir_path), streaming=True).map(
+        lambda x: tokenizer(x["text"], truncation=True, padding="max_length", return_tensors='pt'),
+        batched=True).remove_columns("text")
 
-    for i, _ in enumerate(tqdm(dataset['train'])):
-        print(i)
+    loaded_datasets = datasets.get('train'), datasets.get('test'), datasets.get('validation')
+    loaded_datasets = filter(lambda x: x is not None, loaded_datasets)
 
-    return train_loader
+    instantiated_datasets = [CC100Dataset(x) for x in loaded_datasets]
+    return tuple(DataLoader(dataset, batch_size=batch_size, collate_fn=data_collator) for dataset in
+                 instantiated_datasets)
 
 
 def main():
