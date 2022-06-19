@@ -44,8 +44,7 @@ def main():
             # log['step'].log(i)
             input_ids = data['input_ids']
             attention_mask = data['attention_mask']
-            # inputs['labels'] = inputs.input_ids.detach().clone()
-            labels = input_ids  # TODO: ! IMPORTANT ! that's not right, labels are inputs but without masks...
+            labels = data['unmasked_input_ids']
 
             input_ids = input_ids.to(device)
             labels = labels.to(device)
@@ -59,7 +58,6 @@ def main():
                 input_ids=input_ids,
                 attention_mask=attention_mask
             )
-            print(f"Step {i} size {size}")
 
             loss = criterion(outputs.view(-1, outputs.shape[-1]), labels.view(-1))
             log['train_every_step'].log(loss)

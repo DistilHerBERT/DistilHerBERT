@@ -1,5 +1,5 @@
 import os.path
-from typing import Tuple, List
+from typing import Tuple, Iterable, Dict
 from zlib import crc32
 
 import datasets
@@ -54,24 +54,44 @@ def imperfect_split_file_lines(file_path: str = os.path.join("data", "cc100", "p
                             valid_file.write(sentence)
 
 
+def create_collate_fn(tokenizer, mlm=True, mlm_prob=0.15, return_tensors='pt'):
+    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer,
+                                                    mlm=mlm,
+                                                    mlm_probability=mlm_prob,
+                                                    return_tensors=return_tensors)  # TODO: it should be sufficient to specify the tokenizer in just one place, not both in dataset an
+
+    def collate(batch: Iterable[Dict]):
+        texts = [x.pop('text') for x in batch]
+        outcomes = data_collator(batch)
+        for text, x in zip(texts, outcomes):
+            x['text'] = text
+        return outcomes
+
+    return data_collator
+
+
+def copy_input_ids(dict_: Dict, key='input_ids', newkey='unmasked_input_ids'):
+    dict_[newkey] = dict_[key].detach().clone()
+    return dict_
+
+
 def get_cc100_dataloaders(tokenizer=AutoTokenizer.from_pretrained("allegro/herbert-base-cased"),
                           dir_path: str = os.path.join('data', 'cc100'),
                           batch_size=10,
                           mlm_prob=0.15) -> Tuple:
     tokenizer = AutoTokenizer.from_pretrained("allegro/herbert-base-cased")
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer,
-                                                    mlm=True,
-                                                    mlm_probability=mlm_prob)  # TODO: it should be sufficient to specify the tokenizer in just one place, not both in dataset an
 
     datasets = load_dataset("text", data_dir=os.path.join(dir_path), streaming=True).map(
         lambda x: tokenizer(x["text"], truncation=True, padding="max_length", return_tensors='pt'),
-        batched=True).remove_columns("text")
+        batched=True).remove_columns("text").map(copy_input_ids)
 
     loaded_datasets = datasets.get('train'), datasets.get('test'), datasets.get('validation')
     loaded_datasets = filter(lambda x: x is not None, loaded_datasets)
 
     instantiated_datasets = [CC100Dataset(x) for x in loaded_datasets]
-    return tuple(DataLoader(dataset, batch_size=batch_size, collate_fn=data_collator) for dataset in
+    return tuple(DataLoader(dataset, batch_size=batch_size,
+                            collate_fn=create_collate_fn(tokenizer, mlm=True, mlm_prob=mlm_prob, return_tensors='pt'))
+                 for dataset in
                  instantiated_datasets)
 
 
