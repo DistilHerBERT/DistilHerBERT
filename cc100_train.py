@@ -61,7 +61,7 @@ def main():
             )
             print(f"Step {i} size {size}")
 
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs.view(-1, outputs.shape[-1]), labels.view(-1))
             log['train_every_step'].log(loss)
             loss.backward()
             optimizer.step()
