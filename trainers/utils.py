@@ -12,10 +12,12 @@ def create_masked_ids(data):
     data.input_ids[masked_ids] = 4
     return masked_ids
 
+
 def get_masked_mask_and_att_mask(tokenized_input, lengths):
     mask1 = torch.tensor(~np.isin(tokenized_input.detach().cpu().numpy(), (0, 1, 2, 4)))
     att_mask = torch.arange(mask1.size(1))[None, :] < lengths[:, None].detach().cpu()
     return mask1, att_mask
+
 
 def get_teacher_student_tokenizer():
     from transformers import AutoTokenizer, AutoModel
@@ -38,14 +40,15 @@ def count_parameters(model):
 
 
 def configure_optimizer(model, optim, weight_decay=1e-4, **optim_kwargs):
-    decay = {pn for pn, p in model.named_parameters() if 'embeddings' in pn or 'LayerNorm' in pn}
+    alert_chunks = ['embeddings', 'LayerNorm', 'bias']
+    no_decay = {pn for pn, p in model.named_parameters() if any(c in pn for c in alert_chunks)}
     optimizer_grouped_parameters = [
         {
-            "params": [p for pn, p in model.named_parameters() if pn in decay and p.requires_grad],
+            "params": [p for pn, p in model.named_parameters() if pn not in no_decay and p.requires_grad],
             "weight_decay": weight_decay,
         },
         {
-            "params": [p for pn, p in model.named_parameters() if pn not in decay and p.requires_grad],
+            "params": [p for pn, p in model.named_parameters() if pn in no_decay and p.requires_grad],
             "weight_decay": 0.0,
         },
     ]
