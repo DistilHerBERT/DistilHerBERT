@@ -1,2 +1,2 @@
 #!/bin/bash
-srun --time 3-0 --gres=gpu python pl_trainer.py
+srun --time 2-0 --gres=gpu --gpus 1 python pl_trainer.py
