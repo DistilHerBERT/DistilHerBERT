@@ -1,6 +1,5 @@
 import os
 import datetime
-
 import torch
 import torch.nn.functional as F
 from tqdm.auto import tqdm
@@ -133,12 +132,12 @@ class DistilTrainer(object):
                 running_loss = 0.0
                 running_denom = 0.0
 
-                # if (i + 1) % config_run_epoch.save_interval == 0:
-                #     self.save_student(save_path)
+                if (i + 1) % config_run_epoch.save_interval == 0:
+                    self.save_student(save_path)
 
     def save_student(self, path):
-        # torch.save(self.student.state_dict(), f"{path}/student_{datetime.datetime.utcnow()}.pth")
-        self.student.save_pretrained(f"{path}/student_{datetime.datetime.utcnow()}.pth")
+        torch.save(self.student.state_dict(), f"{path}/student_{datetime.datetime.utcnow()}.pth")
+        #self.student.save_pretrained(f"{path}/student_{datetime.datetime.utcnow()}.pth")
 
     def manual_seed(self, random_seed):
         import numpy as np
