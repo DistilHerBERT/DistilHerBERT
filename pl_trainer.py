@@ -47,31 +47,32 @@ def collate_fn(data):
 
 
 # example dataset
-class CustomImageDataset(Dataset):
-    def __init__(self, sentences_path, tokenizer):
+class CustomImageDataset(torch.utils.data.IterableDataset):
+    def __init__(self, sentences_path, tokenizer, length):
         #self.sentences = pd.read_csv(sentences_path, sep=sep)['sentence']
-        with open(sentences_path) as f:
-            self.sentences = [l.strip() for l in f]
+        self.f = open(sentences_path)
         self.main_tokenizer = tokenizer
         self.aux_tokenizer = MosesTokenizer(lang='pl')
         self.vocab = self.main_tokenizer.vocab
         self.vocab_size = len(tokenizer.vocab)
+        self.length = length
 
 
     def __len__(self):
-        return len(self.sentences)
+        return self.length
 
-    def __getitem__(self, idx):
-        input_labels, output_labels = self.random_word(self.sentences[idx])
+    def __iter__(self):
+        for line in self.f:
+            input_labels, output_labels = self.random_word(line.strip())
 
-        # [CLS] tag = BOS tag, [SEP] tag = SEP tag
-        t1 = [self.main_tokenizer.bos_token_id] + input_labels + [self.main_tokenizer.sep_token_id]
-        t1_label = [self.main_tokenizer.bos_token_id] + output_labels + [self.main_tokenizer.sep_token_id]
+            # [CLS] tag = BOS tag, [SEP] tag = SEP tag
+            t1 = [self.main_tokenizer.bos_token_id] + input_labels + [self.main_tokenizer.sep_token_id]
+            t1_label = [self.main_tokenizer.bos_token_id] + output_labels + [self.main_tokenizer.sep_token_id]
 
-        bert_input = t1[:self.main_tokenizer.max_len_single_sentence]
-        bert_label = t1_label[:self.main_tokenizer.max_len_single_sentence]
+            bert_input = t1[:self.main_tokenizer.max_len_single_sentence]
+            bert_label = t1_label[:self.main_tokenizer.max_len_single_sentence]
 
-        return bert_input, bert_label
+            yield bert_input, bert_label
     
     def random_word(self, sentence):
         tokens = self.aux_tokenizer.tokenize(sentence)
@@ -110,12 +111,11 @@ class CustomImageDataset(Dataset):
 
 
 #TODO fix this
-train_dataset = CustomImageDataset('datasets/pl_train.txt', tokenizer=tokenizer)
-test_dataset = CustomImageDataset('datasets/pl_test.txt', tokenizer=tokenizer)
+train_dataset = CustomImageDataset('datasets/pl_train.txt', tokenizer=tokenizer, length=4950457)
+test_dataset = CustomImageDataset('datasets/pl_test.txt', tokenizer=tokenizer, length=110000)
 
-
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True, collate_fn=collate_fn)
-test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, pin_memory=True, collate_fn=collate_fn)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, pin_memory=True, collate_fn=collate_fn)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, pin_memory=True, collate_fn=collate_fn)
 
 # batch = next(iter(test_loader))
 # batch
