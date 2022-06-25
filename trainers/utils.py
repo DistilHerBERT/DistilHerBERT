@@ -1,3 +1,5 @@
+import os
+
 import torch
 import numpy as np
 
@@ -24,7 +26,7 @@ def get_teacher_student_tokenizer():
 
     tokenizer = AutoTokenizer.from_pretrained("allegro/herbert-base-cased")
     teacher = AutoModel.from_pretrained("allegro/herbert-base-cased")
-    student = creat_student(teacher)
+    student = creat_student()
     
     print(f'Number of parameters: Teacher: {count_parameters(teacher)}, Student: {count_parameters(student)},'
           f'Student / Teacher ratio: {round(count_parameters(student) / count_parameters(teacher), 4)}.')
@@ -37,6 +39,12 @@ def get_teacher_student_tokenizer():
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def print_model_size(mdl):
+    torch.save(mdl.state_dict(), "tmp.pt")
+    print("%.2f MB" %(os.path.getsize("tmp.pt")/1e6))
+    os.remove('tmp.pt')
 
 
 def configure_optimizer(model, optim, weight_decay=1e-4, **optim_kwargs):

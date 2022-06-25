@@ -1,5 +1,6 @@
 import os
 import datetime
+
 import torch
 import torch.nn.functional as F
 from tqdm.auto import tqdm
@@ -26,7 +27,7 @@ class DistilTrainer(object):
         self.t_logger = None  # tensorflow logger
         self.device = device
 
-    def run_exp(self, epoch_start, epoch_end, exp_name, config_run_epoch, temp=0.5, random_seed=42):
+    def run_exp(self, epoch_start, epoch_end, exp_name, config_run_epoch, temp=1.0, random_seed=42):
         save_path = self.at_exp_start(exp_name, random_seed)
         for epoch in tqdm(range(epoch_start, epoch_end), desc='run_exp'):
             self.teacher.eval()
@@ -34,7 +35,7 @@ class DistilTrainer(object):
             self.run_epoch(epoch, save_path, config_run_epoch, phase='train', temp=temp)
             self.student.eval()
             with torch.no_grad():
-                self.run_epoch(epoch, save_path, config_run_epoch, phase='test', temp=1.)
+                self.run_epoch(epoch, save_path, config_run_epoch, phase='test', temp=1.0)
 
     def at_exp_start(self, exp_name, random_seed):
         self.manual_seed(random_seed)
@@ -65,13 +66,13 @@ class DistilTrainer(object):
             tokenized_output = tokenized_output.view(-1)[masked_mask]
 
             y_pred_student = self.student(input_ids=tokenized_input, attention_mask=att_mask)[0]
-            y_pred_student0 = y_pred_student.view(-1, y_pred_student.size(-1))[masked_mask]
-            y_pred_student = y_pred_student0 @ self.student.embeddings.word_embeddings.weight.T
+            y_pred_student = y_pred_student.view(-1, y_pred_student.size(-1))[masked_mask]
+            y_pred_student = y_pred_student @ self.student.embeddings.word_embeddings.weight.T
 
             with torch.no_grad():
                 y_pred_teacher = self.teacher(input_ids=tokenized_input, attention_mask=att_mask)['last_hidden_state']
-                y_pred_teacher0 = y_pred_teacher.view(-1, y_pred_teacher.size(-1))[masked_mask]
-                y_pred_teacher = y_pred_teacher0 @ self.teacher.embeddings.word_embeddings.weight.T
+                y_pred_teacher = y_pred_teacher.view(-1, y_pred_teacher.size(-1))[masked_mask]
+                y_pred_teacher = y_pred_teacher @ self.teacher.embeddings.word_embeddings.weight.T
 
             assert y_pred_student.shape == y_pred_teacher.shape
 
@@ -83,6 +84,12 @@ class DistilTrainer(object):
 
             # jakies ważenie losów? może związane ze schedulerem?
             loss = (loss1 + loss2 + loss3) / 3
+
+            self.n_logger['train_every_step1_mlm_loss'].log(loss1.item())
+            self.n_logger['train_every_step2_distill_loss'].log(loss2.item())
+            self.n_logger['train_every_step3_cosine_loss'].log(loss3.item())
+            self.n_logger['train_every_step'].log(loss.item())
+
             loss /= config_run_epoch.grad_accum_steps
             if 'train' in phase:
                 # loss.backward()
@@ -93,15 +100,9 @@ class DistilTrainer(object):
                     if self.scheduler is not None:
                         self.scheduler.step()
                     self.optim.zero_grad()
-
             loss *= config_run_epoch.grad_accum_steps
 
-            self.n_logger['train_every_step1'].log(loss1)
-            self.n_logger['train_every_step2'].log(loss2)
-            self.n_logger['train_every_step3'].log(loss3)
-            self.n_logger['train_every_step'].log(loss)
-
-            denom = masked_mask.size(0)
+            denom = tokenized_output.size(0)
             running_loss1 += loss1.item() * denom
             running_loss2 += loss2.item() * denom
             running_loss3 += loss3.item() * denom
@@ -132,12 +133,12 @@ class DistilTrainer(object):
                 running_loss = 0.0
                 running_denom = 0.0
 
-                if (i + 1) % config_run_epoch.save_interval == 0:
-                    self.save_student(save_path)
+                # if (i + 1) % config_run_epoch.save_interval == 0:
+                #     self.save_student(save_path)
 
     def save_student(self, path):
         torch.save(self.student.state_dict(), f"{path}/student_{datetime.datetime.utcnow()}.pth")
-        #self.student.save_pretrained(f"{path}/student_{datetime.datetime.utcnow()}.pth")
+        # self.student.save_pretrained(f"{path}/student_{datetime.datetime.utcnow()}.pth")
 
     def manual_seed(self, random_seed):
         import numpy as np

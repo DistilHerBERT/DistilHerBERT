@@ -27,6 +27,9 @@ def copy_weights_from_teacher_to_student(teacher, student):
 def creat_student(teacher_model=None):
     if teacher_model is None:
         teacher_model = AutoModel.from_pretrained("allegro/herbert-base-cased")
+    else:
+        import copy
+        teacher_model = copy.deepcopy(teacher_model)
 
     teacher_config = teacher_model.config.to_dict()
     teacher_config['num_hidden_layers'] //= 2
