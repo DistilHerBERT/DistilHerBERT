@@ -25,10 +25,10 @@ dataset = CustomImageDataset('datasets/datasetSentences.csv')
 dataloader = DataLoader(dataset, batch_size=32)
 loaders  = {'train': dataloader, 'test': dataloader}
 
-from trainer.utils import get_teacher_student_tokenizer
+from trainers.utils import get_teacher_student_tokenizer
 teacher, student, tokenizer = get_teacher_student_tokenizer()
 
-from trainer.distilTrainer import DistilTrainer
+from trainers.distilTrainer import DistilTrainer
 
 params_trainer = {
     'teacher': teacher.to(device),
