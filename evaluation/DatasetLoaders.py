@@ -1,3 +1,4 @@
+from neattext.functions import clean_text
 from torch.utils.data import Dataset
 import torch
 import csv
@@ -17,7 +18,7 @@ class KlejDataset(Dataset):
             next(reader)
 
             for utterance, target in reader:
-                texts.append(utterance)
+                texts.append(clean_text(utterance))
                 labels.append(target)
 
         self.texts = texts

@@ -11,12 +11,12 @@ from models.distil_student import creat_student
 from models.klej.bert_polemo import BertPolemo
 
 torch.cuda.empty_cache()
-epochs = 20
-# device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-device = torch.device('mps')
+epochs = 25
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+#device = torch.device('mps')
 print(torch.cuda.is_available())
 save_interval = 200
-lr = 0.0001
+lr = 0.00001
 batch_size = 4
 
 
@@ -33,8 +33,7 @@ def get_dataloaders(tokenizer, path_train, path_test):
 
 def score_model(output, target):
     # accuracy
-    _, preds = torch.max(output, dim=1)
-    acc = torch.sum(preds == target)
+    acc = (output.argmax(dim=1) == target).sum().item()
     return acc
 
 
@@ -47,36 +46,37 @@ def main(tokenizer, model, save_path, log, dataset_train_path, dataset_test_path
     model_polemo.to(device)
 
     criterion = nn.CrossEntropyLoss().to(device=device)
-    optimizer = optim.AdamW(model.parameters(), lr=2e-5)
-
+    optimizer = optim.AdamW(model_polemo.parameters(), lr=lr)
+    running_loss, running_acc, final_acc = 0.0, 0.0, 0.0
     for epoch in range(epochs):
         model_polemo = model_polemo.train()
-        running_loss, running_acc, final_acc = 0.0, 0.0, 0.0
+        final_acc = 0.0
         log['epoch'].log(epoch)
         for i, data in enumerate(train):
             log['step'].log(i)
-            optimizer.zero_grad()
             input_ids, attention_mask, label = data['input_ids'], data['attention_mask'], data['label']
             outputs = model_polemo(input_ids=input_ids, attention_mask=attention_mask)
 
             loss = criterion(outputs, label)
             loss.backward()
             optimizer.step()
+            nn.utils.clip_grad_norm_(model_polemo.parameters(), max_norm=1.0)
+            optimizer.zero_grad()
 
             running_loss += loss.item()
             acc = score_model(outputs, label)
             running_acc += acc
             final_acc += acc
-            if i % 10 == 9:
-                tmp_loss = running_loss / 10
+            if i % 100 == 99:
+                tmp_loss = running_loss / 100 / batch_size
                 log['train_loss'].log(tmp_loss)
-                log['train_acc'].log(running_acc / batch_size / 10)
+                log['train_acc'].log(running_acc / batch_size / 100)
                 running_loss, running_acc = 0.0, 0.0
 
             if i % save_interval == save_interval - 1:
                 torch.save(model_polemo.state_dict(), save_path)
-        log['epoch_train_acc'].log(final_acc / len(train))
-
+        log['epoch_train_acc'].log(final_acc / len(train.dataset))
+        torch.save(model_polemo.state_dict(), save_path)
         model_polemo = model_polemo.eval()
         running_loss_test, running_acc_test, final_acc_test = 0.0, 0.0, 0.0
         with torch.no_grad():
@@ -86,19 +86,17 @@ def main(tokenizer, model, save_path, log, dataset_train_path, dataset_test_path
                 label = data['label']
 
                 outputs = model_polemo(input_ids=input_ids, attention_mask=attention_mask)
-                outputs = torch.nn.Softmax(dim=1)(outputs)
-
                 loss = criterion(outputs, label)
                 running_loss_test += loss.item()
                 acc = score_model(outputs, label)
                 running_acc_test += acc
                 final_acc_test += acc
-                if i % 10 == 9:
-                    tmp_loss = running_loss / 10
+                if i % 100 == 99:
+                    tmp_loss = running_loss / 100 / batch_size
                     log['test_loss'].log(tmp_loss)
-                    log['test_acc'].log(running_acc_test / batch_size / 10)
+                    log['test_acc'].log(running_acc_test / batch_size / 100)
                     running_loss_test, running_acc_test = 0.0, 0.0
-            log['epoch_test_acc'].log(final_acc_test / len(test))
+            log['epoch_test_acc'].log(final_acc_test / len(test.dataset))
 
 
 def run_scenario(case, dataset):
@@ -145,3 +143,8 @@ def run_scenario(case, dataset):
 
 if __name__ == "__main__":
     run_scenario('2', 'in')
+    run_scenario('2', 'out')
+    run_scenario('0', 'in')
+    run_scenario('0', 'out')
+    run_scenario('1', 'in')
+    run_scenario('1', 'out')

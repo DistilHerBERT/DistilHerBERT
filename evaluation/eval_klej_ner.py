@@ -11,14 +11,14 @@ from models.distil_student import creat_student
 from models.klej.bert_ner import BertNER
 
 torch.cuda.empty_cache()
-epochs = 10
+epochs = 20
 save_path = './weights/klej_ner_herbert.pth'
-# device = torch.device( 'cuda:0' if torch.cuda.is_available() else 'cpu')
-device = torch.device('mps')
+device = torch.device( 'cuda:0' if torch.cuda.is_available() else 'cpu')
+#device = torch.device('mps')
 print(torch.cuda.is_available())
 save_interval = 100
-lr = 0.001
-batch_size = 16
+lr = 0.00001
+batch_size = 8
 
 log = NeptuneLogger("HerBert_NER")
 log['lr'] = lr
@@ -53,34 +53,36 @@ def main(tokenizer, model, save_path, log, dataset_train_path="datasets/klej_nkj
     criterion = nn.CrossEntropyLoss()
     criterion.to(device=device)
     optimizer = optim.SGD(ner_model.parameters(), lr=lr, momentum=0.9)
-
+    running_loss, running_acc, final_acc = 0.0, 0.0, 0.0
     for epoch in range(epochs):
         ner_model = ner_model.train()
-        running_loss, running_acc, final_acc = 0.0, 0.0, 0.0
+        final_acc = 0.0
         log['epoch'].log(epoch)
         for i, data in enumerate(train):
             log['step'].log(i)
-            optimizer.zero_grad()
+
             input_ids, attention_mask, label = data['input_ids'], data['attention_mask'], data['label']
             outputs = ner_model(input_ids=input_ids, attention_mask=attention_mask)
             loss = criterion(outputs, label)
             loss.backward()
             optimizer.step()
+            nn.utils.clip_grad_norm_(ner_model.parameters(), max_norm=1.0)
+            optimizer.zero_grad()
 
             running_loss += loss.item()
             acc = score_model(outputs, label)
             running_acc += acc
             final_acc += acc
-            if i % 10 == 9:
-                tmp_loss = running_loss / 10
+            if i % save_interval == 99:
+                tmp_loss = running_loss / save_interval / batch_size
                 log['train_loss'].log(tmp_loss)
-                log['train_acc'].log(running_acc / batch_size / 10)
+                log['train_acc'].log(running_acc / batch_size / save_interval)
                 running_loss, running_acc = 0.0, 0.0
 
             if i % save_interval == save_interval - 1:
                 torch.save(ner_model.state_dict(), save_path)
-        log['epoch_train_acc'].log(final_acc / len(train))
-
+        log['epoch_train_acc'].log(final_acc / len(train.dataset))
+        torch.save(ner_model.state_dict(), save_path)
         ner_model = ner_model.eval()
         running_loss_test, running_acc_test, final_acc_test = 0.0, 0.0, 0.0
         with torch.no_grad():
@@ -90,19 +92,17 @@ def main(tokenizer, model, save_path, log, dataset_train_path="datasets/klej_nkj
                 label = data['label']
 
                 outputs = ner_model(input_ids=input_ids, attention_mask=attention_mask)
-                outputs = torch.nn.Softmax(dim=1)(outputs)
-
                 loss = criterion(outputs, label)
                 running_loss_test += loss.item()
                 acc = score_model(outputs, label)
                 running_acc_test += acc
                 final_acc_test += acc
-                if i % 10 == 9:
-                    tmp_loss = running_loss_test / 10
+                if i % save_interval == 99:
+                    tmp_loss = running_loss_test / save_interval / batch_size
                     log['test_loss'].log(tmp_loss)
-                    log['test_acc'].log(running_acc_test / batch_size / 10)
+                    log['test_acc'].log(running_acc_test / batch_size / save_interval)
                     running_loss_test, running_acc_test = 0.0, 0.0
-            log['test_acc'].log(final_acc_test / len(test))
+            log['test_acc'].log(final_acc_test / len(test.dataset))
 
 
 def run_scenario(case):
@@ -146,3 +146,5 @@ def run_scenario(case):
 
 if __name__ == "__main__":
     run_scenario('2')
+    run_scenario('0')
+    run_scenario('1')
