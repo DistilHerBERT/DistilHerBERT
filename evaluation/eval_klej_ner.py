@@ -47,15 +47,15 @@ def main(tokenizer, model, save_path, log, dataset_train_path="datasets/klej_nkj
     train, test, labels_map = get_dataloaders(tokenizer, dataset_train_path, dataset_test_path)
 
     ner_model = BertNER(model.config, len(labels_map))
-    ner_model.bert.load_state_dict(model.state_dict())
+    ner_model.bert.load_state_dict(model.state_dict(), strict=False)
     ner_model.to(device)
 
     criterion = nn.CrossEntropyLoss()
     criterion.to(device=device)
     optimizer = optim.SGD(ner_model.parameters(), lr=lr, momentum=0.9)
-    ner_model.train()
 
     for epoch in range(epochs):
+        ner_model = ner_model.train()
         running_loss, running_acc, final_acc = 0.0, 0.0, 0.0
         log['epoch'].log(epoch)
         for i, data in enumerate(train):
@@ -81,7 +81,7 @@ def main(tokenizer, model, save_path, log, dataset_train_path="datasets/klej_nkj
                 torch.save(ner_model.state_dict(), save_path)
         log['epoch_train_acc'].log(final_acc / len(train))
 
-        ner_model.eval()
+        ner_model = ner_model.eval()
         running_loss_test, running_acc_test, final_acc_test = 0.0, 0.0, 0.0
         with torch.no_grad():
             for i, data in enumerate(test):
@@ -134,7 +134,7 @@ def run_scenario(case):
     elif case == "2":
         distil_path = './weights/student_final.pth'
         model = creat_student()
-        model.load_state_dict(torch.load(distil_path))
+        model.load_state_dict(torch.load(distil_path, map_location=device))
         path = f'./weights/klej_ner_herbert_distil.pth'
         log = NeptuneLogger(f"HerBert_ner_herbert_distil")
         log['lr'] = lr

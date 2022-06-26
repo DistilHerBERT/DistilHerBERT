@@ -50,7 +50,7 @@ def main(tokenizer, model, save_path, log, dataset_train_path, dataset_test_path
     optimizer = optim.AdamW(model.parameters(), lr=2e-5)
 
     for epoch in range(epochs):
-        model_polemo.train()
+        model_polemo = model_polemo.train()
         running_loss, running_acc, final_acc = 0.0, 0.0, 0.0
         log['epoch'].log(epoch)
         for i, data in enumerate(train):
@@ -77,7 +77,7 @@ def main(tokenizer, model, save_path, log, dataset_train_path, dataset_test_path
                 torch.save(model_polemo.state_dict(), save_path)
         log['epoch_train_acc'].log(final_acc / len(train))
 
-        model_polemo.eval()
+        model_polemo = model_polemo.eval()
         running_loss_test, running_acc_test, final_acc_test = 0.0, 0.0, 0.0
         with torch.no_grad():
             for i, data in enumerate(test):
