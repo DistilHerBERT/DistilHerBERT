@@ -11,18 +11,14 @@ from models.distil_student import creat_student
 from models.klej.bert_ner import BertNER
 
 torch.cuda.empty_cache()
-epochs = 20
+epochs = 6
 save_path = './weights/klej_ner_herbert.pth'
-device = torch.device( 'cuda:0' if torch.cuda.is_available() else 'cpu')
-#device = torch.device('mps')
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('mps')
 print(torch.cuda.is_available())
 save_interval = 100
-lr = 0.00001
+lr = 0.00002
 batch_size = 8
-
-log = NeptuneLogger("HerBert_NER")
-log['lr'] = lr
-log['epochs'] = epochs
 
 
 def get_dataloaders(tokenizer, path_train, path_test):
@@ -50,10 +46,9 @@ def main(tokenizer, model, save_path, log, dataset_train_path="datasets/klej_nkj
     ner_model.bert.load_state_dict(model.state_dict(), strict=False)
     ner_model.to(device)
 
-    criterion = nn.CrossEntropyLoss()
-    criterion.to(device=device)
-    optimizer = optim.SGD(ner_model.parameters(), lr=lr, momentum=0.9)
-    running_loss, running_acc, final_acc = 0.0, 0.0, 0.0
+    criterion = nn.CrossEntropyLoss().to(device=device)
+    optimizer = optim.AdamW(ner_model.parameters(), lr=lr)
+    running_loss, running_acc, final_acc, count = 0.0, 0.0, 0.0, 0
     for epoch in range(epochs):
         ner_model = ner_model.train()
         final_acc = 0.0
@@ -65,26 +60,27 @@ def main(tokenizer, model, save_path, log, dataset_train_path="datasets/klej_nkj
             outputs = ner_model(input_ids=input_ids, attention_mask=attention_mask)
             loss = criterion(outputs, label)
             loss.backward()
-            optimizer.step()
             nn.utils.clip_grad_norm_(ner_model.parameters(), max_norm=1.0)
+            optimizer.step()
             optimizer.zero_grad()
 
             running_loss += loss.item()
             acc = score_model(outputs, label)
             running_acc += acc
             final_acc += acc
+            count += len(label)
             if i % save_interval == 99:
-                tmp_loss = running_loss / save_interval / batch_size
+                tmp_loss = running_loss / count
                 log['train_loss'].log(tmp_loss)
-                log['train_acc'].log(running_acc / batch_size / save_interval)
-                running_loss, running_acc = 0.0, 0.0
+                log['train_acc'].log(running_acc / count)
+                running_loss, running_acc, count = 0.0, 0.0, 0.0
 
-            if i % save_interval == save_interval - 1:
+            if i % save_interval == 99 - 1:
                 torch.save(ner_model.state_dict(), save_path)
         log['epoch_train_acc'].log(final_acc / len(train.dataset))
         torch.save(ner_model.state_dict(), save_path)
         ner_model = ner_model.eval()
-        running_loss_test, running_acc_test, final_acc_test = 0.0, 0.0, 0.0
+        running_loss_test, running_acc_test, final_acc_test, count = 0.0, 0.0, 0.0, 0
         with torch.no_grad():
             for i, data in enumerate(test):
                 input_ids = data['input_ids']
@@ -97,12 +93,13 @@ def main(tokenizer, model, save_path, log, dataset_train_path="datasets/klej_nkj
                 acc = score_model(outputs, label)
                 running_acc_test += acc
                 final_acc_test += acc
+                count += len(label)
                 if i % save_interval == 99:
-                    tmp_loss = running_loss_test / save_interval / batch_size
+                    tmp_loss = running_loss_test / count
                     log['test_loss'].log(tmp_loss)
-                    log['test_acc'].log(running_acc_test / batch_size / save_interval)
-                    running_loss_test, running_acc_test = 0.0, 0.0
-            log['test_acc'].log(final_acc_test / len(test.dataset))
+                    log['test_acc'].log(running_acc_test / count)
+                    running_loss_test, running_acc_test, count = 0.0, 0.0, 0
+            log['epoch_test_acc'].log(final_acc_test / len(test.dataset))
 
 
 def run_scenario(case):
@@ -115,36 +112,41 @@ def run_scenario(case):
     model_pl = AutoModel.from_pretrained("allegro/herbert-base-cased", return_dict=False).to(device=device)
 
     if case == "0":
-        student = creat_student(model_pl)
-        path = './weights/klej_ner_herbert_2.pth'
-        log = NeptuneLogger(f"HerBert_ner")
-        log['lr'] = lr
-        log['epochs'] = epochs
-        log['dataset'] = f'klej_nkjp-ner'
-        log['model_name'] = 'student_2'
-        main(tokenizer, student, path, log)
-    elif case == "1":
-        path = f'./weights/klej_ner_herbert.pth'
-        log = NeptuneLogger(f"HerBert_ner")
-        log['lr'] = lr
-        log['epochs'] = epochs
-        log['dataset'] = f'klej_nkjp-ner'
-        log['model_name'] = 'herbert'
-        main(tokenizer, model_pl, path, log)
-    elif case == "2":
-        distil_path = './weights/student_final.pth'
-        model = creat_student()
+        distil_path = './weights/plain_distil/2022-06-26_03-19-38/checkpoints/student_orginal_training.pth'
+        model = creat_student().to(device=device)
         model.load_state_dict(torch.load(distil_path, map_location=device))
-        path = f'./weights/klej_ner_herbert_distil.pth'
-        log = NeptuneLogger(f"HerBert_ner_herbert_distil")
+        path = './weights/klej_ner_herbert_student_orginal_training.pth'
+        log = NeptuneLogger(f"HerBert_ner_student_orginal_training")
         log['lr'] = lr
         log['epochs'] = epochs
         log['dataset'] = f'klej_nkjp-ner'
-        log['model_name'] = 'student_distil'
+        log['model_name'] = 'student_orginal_training'
+        main(tokenizer, model, path, log)
+    elif case == "1":
+        distil_path = './weights/plain_distil/2022-06-26_03-20-39/checkpoints/student_one_loss.pth'
+        model = creat_student().to(device=device)
+        model.load_state_dict(torch.load(distil_path, map_location=device))
+        path = f'./weights/klej_ner_herbert_student_one_loss.pth'
+        log = NeptuneLogger(f"HerBert_ner_student_one_loss")
+        log['lr'] = lr
+        log['epochs'] = epochs
+        log['dataset'] = f'klej_nkjp-ner'
+        log['model_name'] = 'student_one_loss'
+        main(tokenizer, model, path, log)
+    elif case == "2":
+        distil_path = './weights/plain_distil/2022-06-26_03-21-40/checkpoints/student_no_teacher.pth'
+        model = creat_student().to(device=device)
+        model.load_state_dict(torch.load(distil_path, map_location=device))
+        path = f'./weights/klej_ner_herbert_student_no_teacher.pth'
+        log = NeptuneLogger(f"HerBert_ner_herbert_student_no_teacher")
+        log['lr'] = lr
+        log['epochs'] = epochs
+        log['dataset'] = f'klej_nkjp-ner'
+        log['model_name'] = 'student_no_teacher'
         main(tokenizer, model, path, log)
 
 
 if __name__ == "__main__":
-    run_scenario('2')
     run_scenario('0')
+    run_scenario('2')
     run_scenario('1')
