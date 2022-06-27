@@ -11,9 +11,9 @@ from models.distil_student import creat_student
 from models.klej.bert_polemo import BertPolemo
 
 torch.cuda.empty_cache()
-epochs = 25
+epochs = 6
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-#device = torch.device('mps')
+# device = torch.device('mps')
 print(torch.cuda.is_available())
 save_interval = 200
 lr = 0.00001
@@ -37,7 +37,7 @@ def score_model(output, target):
     return acc
 
 
-def main(tokenizer, model, save_path, log, dataset_train_path, dataset_test_path ):
+def main(tokenizer, model, save_path, log, dataset_train_path, dataset_test_path):
     train, test, labels_map = get_dataloaders(tokenizer, dataset_train_path,
                                               dataset_test_path)
 
@@ -47,7 +47,7 @@ def main(tokenizer, model, save_path, log, dataset_train_path, dataset_test_path
 
     criterion = nn.CrossEntropyLoss().to(device=device)
     optimizer = optim.AdamW(model_polemo.parameters(), lr=lr)
-    running_loss, running_acc, final_acc = 0.0, 0.0, 0.0
+    running_loss, running_acc, final_acc, count = 0.0, 0.0, 0.0, 0
     for epoch in range(epochs):
         model_polemo = model_polemo.train()
         final_acc = 0.0
@@ -67,18 +67,19 @@ def main(tokenizer, model, save_path, log, dataset_train_path, dataset_test_path
             acc = score_model(outputs, label)
             running_acc += acc
             final_acc += acc
+            count += len(data)
             if i % 100 == 99:
-                tmp_loss = running_loss / 100 / batch_size
+                tmp_loss = running_loss / count
                 log['train_loss'].log(tmp_loss)
-                log['train_acc'].log(running_acc / batch_size / 100)
-                running_loss, running_acc = 0.0, 0.0
+                log['train_acc'].log(running_acc / count)
+                running_loss, running_acc, count = 0.0, 0.0, 0.0
 
             if i % save_interval == save_interval - 1:
                 torch.save(model_polemo.state_dict(), save_path)
         log['epoch_train_acc'].log(final_acc / len(train.dataset))
         torch.save(model_polemo.state_dict(), save_path)
         model_polemo = model_polemo.eval()
-        running_loss_test, running_acc_test, final_acc_test = 0.0, 0.0, 0.0
+        running_loss_test, running_acc_test, final_acc_test, count = 0.0, 0.0, 0.0, 0
         with torch.no_grad():
             for i, data in enumerate(test):
                 input_ids = data['input_ids']
@@ -91,11 +92,12 @@ def main(tokenizer, model, save_path, log, dataset_train_path, dataset_test_path
                 acc = score_model(outputs, label)
                 running_acc_test += acc
                 final_acc_test += acc
+                count += len(data)
                 if i % 100 == 99:
-                    tmp_loss = running_loss / 100 / batch_size
+                    tmp_loss = running_loss / count
                     log['test_loss'].log(tmp_loss)
-                    log['test_acc'].log(running_acc_test / batch_size / 100)
-                    running_loss_test, running_acc_test = 0.0, 0.0
+                    log['test_acc'].log(running_acc_test / count)
+                    running_loss_test, running_acc_test, count = 0.0, 0.0, 0
             log['epoch_test_acc'].log(final_acc_test / len(test.dataset))
 
 
@@ -110,33 +112,41 @@ def run_scenario(case, dataset):
     model_pl = AutoModel.from_pretrained("allegro/herbert-base-cased", return_dict=False).to(device=device)
 
     if case == "0":
-        student = creat_student(model_pl)
-        path = f'./weights/klej_polemo_{dataset}_herbert_2.pth'
-        log = NeptuneLogger(f"HerBert_polemo_{dataset}")
-        log['lr'] = lr
-        log['epochs'] = epochs
-        log['dataset'] = f'klej_polemo2.0-{dataset}'
-        log['model_name'] = 'student_2'
-        main(tokenizer, student, path, log, f"datasets/klej_polemo2.0-{dataset}/train.tsv", f"datasets/klej_polemo2.0-{dataset}/dev.tsv")
-    elif case == "1":
-        path = f'./weights/klej_polemo_{dataset}_herbert.pth'
-        log = NeptuneLogger(f"HerBert_polemo_{dataset}")
-        log['lr'] = lr
-        log['epochs'] = epochs
-        log['dataset'] = f'klej_polemo2.0-{dataset}'
-        log['model_name'] = 'herbert'
-        main(tokenizer, model_pl, path, log, f"datasets/klej_polemo2.0-{dataset}/train.tsv",
-             f"datasets/klej_polemo2.0-{dataset}/dev.tsv")
-    elif case == "2":
-        distil_path = './weights/student_final.pth'
+        #  weights/plain_distil/2022-06-26_03-19-38/checkpoints/student_orginal_training.pth
+        distil_path = './weights/plain_distil/2022-06-26_03-19-38/checkpoints/student_orginal_training.pth'
         model = creat_student().to(device=device)
         model.load_state_dict(torch.load(distil_path, map_location=device))
-        path = f'./weights/klej_polemo_{dataset}_herbert_distil.pth'
-        log = NeptuneLogger(f"HerBert_polemo_{dataset}_herbert_distil")
+        path = f'./weights/klej_polemo_{dataset}_student_orginal_training.pth'
+        log = NeptuneLogger(f"HerBert_student_orginal_training_polemo_{dataset}")
         log['lr'] = lr
         log['epochs'] = epochs
         log['dataset'] = f'klej_polemo2.0-{dataset}'
-        log['model_name'] = 'student_distil'
+        log['model_name'] = 'student_orginal_training'
+        main(tokenizer, model, path, log, f"datasets/klej_polemo2.0-{dataset}/train.tsv",
+             f"datasets/klej_polemo2.0-{dataset}/dev.tsv")
+    elif case == "1":
+        # weights/plain_distil/2022-06-26_03-20-39/checkpoints/student_one_loss.pth
+        distil_path = './weights/plain_distil/2022-06-26_03-20-39/checkpoints/student_one_loss.pth'
+        model = creat_student().to(device=device)
+        model.load_state_dict(torch.load(distil_path, map_location=device))
+        path = f'./weights/klej_polemo_{dataset}_student_one_loss.pth'
+        log = NeptuneLogger(f"HerBert_student_one_loss_polemo_{dataset}")
+        log['lr'] = lr
+        log['epochs'] = epochs
+        log['dataset'] = f'klej_polemo2.0-{dataset}'
+        log['model_name'] = 'student_one_loss'
+        main(tokenizer, model, path, log, f"datasets/klej_polemo2.0-{dataset}/train.tsv",
+             f"datasets/klej_polemo2.0-{dataset}/dev.tsv")
+    elif case == "2":
+        distil_path = './weights/plain_distil/2022-06-26_03-21-40/checkpoints/student_no_teacher.pth'
+        model = creat_student().to(device=device)
+        model.load_state_dict(torch.load(distil_path, map_location=device))
+        path = f'./weights/klej_polemo_{dataset}_herbert_student_no_teacher.pth'
+        log = NeptuneLogger(f"HerBert_polemo_{dataset}_herbert_student_no_teacher")
+        log['lr'] = lr
+        log['epochs'] = epochs
+        log['dataset'] = f'klej_polemo2.0-{dataset}'
+        log['model_name'] = 'student_no_teacher'
         main(tokenizer, model, path, log, f"datasets/klej_polemo2.0-{dataset}/train.tsv",
              f"datasets/klej_polemo2.0-{dataset}/dev.tsv")
 
