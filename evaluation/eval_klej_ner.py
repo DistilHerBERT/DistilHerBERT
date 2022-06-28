@@ -62,6 +62,7 @@ def main(tokenizer, model, save_path, log, dataset_train_path="datasets/klej_nkj
             loss.backward()
             nn.utils.clip_grad_norm_(ner_model.parameters(), max_norm=1.0)
             optimizer.step()
+            nn.utils.clip_grad_norm_(ner_model.parameters(), max_norm=1.0)
             optimizer.zero_grad()
 
             running_loss += loss.item()
