@@ -26,7 +26,7 @@ import torch
 import torch.utils.checkpoint
 from torch import nn
 
-from transformers.activations import GELUActivation
+# from transformers.activations import GELUActivation
 
 
 class BertEmbeddings(nn.Module):
@@ -59,8 +59,10 @@ class BertEmbeddings(nn.Module):
         inputs_embeds = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
-
-        embeddings = inputs_embeds + position_embeddings + token_type_embeddings
+        if token_type_embeddings.size() != inputs_embeds.size():
+            embeddings = inputs_embeds + position_embeddings
+        else:
+            embeddings = inputs_embeds + position_embeddings + token_type_embeddings
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
@@ -175,7 +177,7 @@ class BertIntermediate(nn.Module):
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
         if isinstance(config.hidden_act, str):
-            self.intermediate_act_fn = GELUActivation() # this was originally in config
+            self.intermediate_act_fn = nn.GELU()#GELUActivation() # this was originally in config
         else:
             self.intermediate_act_fn = config.hidden_act
 
